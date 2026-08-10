@@ -1,0 +1,2519 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <title>AUGHT - Puzzle Game - SPM 2026</title>
+  <style>
+    :root {
+      --grid-size: 4;
+      --cell-gap: 6px;
+      --board-padding: 16px;
+    }
+
+
+/* --- SQUARESPACE OVERRIDE CENTER FIX (DESKTOP ONLY) --- */
+@media (min-width: 851px) {
+  /* Targets Squarespace wrappers to force horizontal alignment on desktop */
+  div[id^="block-"], .sqs-block-code, .sqs-block-code-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+}
+/* ------------------------------------------------------ */
+
+#high-score {
+  font-weight: bold;
+  /* Reads the high-score variable set by JS. Defaults to your theme's orange on load */
+  color: var(--best-color, #dfa968); 
+  /* Fades the color change over 0.4 seconds when the record is broken */
+  transition: color 0.4s ease; 
+}
+
+
+.particle-container, .cell, .game-container {
+    transform: translate3d(0, 0, 0);
+    will-change: transform, opacity;
+}
+
+
+
+
+
+   /* ==================== HOLISTIC BODY ELEMENT STYLING ==================== */
+html {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #121212;
+  color: #adadad;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+
+  /* FIXED: Leverages Apple's safe-area bounds + fallback padding to stay clear of the notch/swipe bars */
+  padding-top: calc(env(safe-area-inset-top, 20px) + 35px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 35px);
+  padding-left: calc(env(safe-area-inset-left, 0px) + 16px);
+  padding-right: calc(env(safe-area-inset-right, 0px) + 16px);
+}
+
+html {
+  overflow: hidden;
+}
+
+body, html {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}
+
+/* Ensure all nested sub-elements respect sizing boundaries properly */
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+/* ==================== CORE APP INTERFACE BLOCKS ==================== */
+h1 {
+  margin: 10px 0 5px 0;
+  font-size: 2.5rem;
+  color: #cd6a45;
+  text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+  text-align: center;
+}
+
+.score-container {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  background: #1e1e1e;
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid #333;
+}
+
+#score {
+  font-weight: bold;
+  color: var(--score-color, #828282); 
+  transition: color 0.4s ease; 
+}
+
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+
+/* ==================== FIXED MOBILE PACKAGING CONTAINER ==================== */
+.game-container {
+  position: relative;
+  width: min(100vw - 32px, 100%);
+  max-width: 480px;
+  margin: 0 auto;
+  background-color: #1e1e1e;
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border: 2px solid #333;
+  touch-action: none;
+}
+
+.grid {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-size), minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: var(--cell-gap);
+  max-width: 100%;
+}
+
+.cell {
+  min-height: 0;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+}
+
+    .cell {
+      background-color: #2a2a2a;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: bold;
+      user-select: none;
+      box-sizing: border-box;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+      color: #fff;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }
+    .cell[data-value="0"]:not([data-wall="1"]) {
+      color: transparent;
+      background-color: #2a2a2a;
+      box-shadow: none;
+    }
+    .cell:not([data-value="0"]):not([data-wall="1"]) {
+      background-color: var(--bg-color, #444);
+      box-shadow: 0 0 12px var(--bg-color, #444);
+    }
+    .cell.alphabet-tile {
+      font-size: 2.7rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: color-mix(in srgb, var(--bg-color) 70%, black);
+      -webkit-text-stroke: 1px white;
+      text-stroke: 1.8px white;
+      text-shadow: none;
+    }
+
+    /* --- POWERUP VISUALS (FINAL VERSION) --- */
+    .cell[data-powerup] {
+      border-width: 2px;
+      border-style: solid;
+      animation-duration: 1.1s;
+      animation-iteration-count: infinite;
+      animation-timing-function: ease-in-out;
+      -webkit-text-stroke: 1px white;
+      text-stroke: 1px white;
+    }
+
+    .cell[data-powerup="boost"] {
+      animation-name: glow-boost;
+      border-color: #fffc35;
+      color: #fffc35 !important;
+    }
+    .cell[data-powerup="explode"] {
+      animation-name: glow-explode;
+      border-color: #ff3030;
+      color: #ff3030 !important;
+    }
+    .cell[data-powerup="grow"] {
+      animation-name: glow-grow;
+      border-color: #00ff55;
+      color: #00ff55 !important;
+    }
+        .cell[data-powerup="justify"] {
+      animation-name: glow-justify;
+      border-color: #e88309;
+      color: #e88309 !important;
+    }
+    .cell[data-powerup="link"] {
+      animation-name: glow-link;
+      border-color: #efefef;
+      color: #efefef !important;
+    }
+        .cell[data-powerup="warp"] {
+      animation-name: glow-warp;
+      border-color: #707070;
+      color: #707070 !important;
+    }
+
+    @keyframes glow-boost {
+      0%   { box-shadow: 0 0 6px #fffc35, 0 0 14px #fffc35; }
+      50%  { box-shadow: 0 0 14px #ffffe6, 0 0 28px #fffc35; }
+      100% { box-shadow: 0 0 6px #fffc35, 0 0 14px #fffc35; }
+    }
+    @keyframes glow-explode {
+      0%   { box-shadow: 0 0 6px #ff3030, 0 0 14px #ff3030; }
+      50%  { box-shadow: 0 0 14px #ffc7c7, 0 0 28px #ff3030; }
+      100% { box-shadow: 0 0 6px #ff3030, 0 0 14px #ff3030; }
+    }
+    @keyframes glow-grow {
+      0%   { box-shadow: 0 0 6px #00ff55, 0 0 14px #00ff55; }
+      50%  { box-shadow: 0 0 14px #adffc8, 0 0 28px #00ff55; }
+      100% { box-shadow: 0 0 6px #00ff55, 0 0 14px #00ff55; }
+    }
+    @keyframes glow-justify {
+      0%   { box-shadow: 0 0 6px #e88309, 0 0 14px #e88309; }
+      50%  { box-shadow: 0 0 14px #fbfbfb, 0 0 28px #e88309; }
+      100% { box-shadow: 0 0 6px #e88309, 0 0 14px #e88309; }
+    }
+    @keyframes glow-link {
+      0%   { box-shadow: 0 0 6px #efefef, 0 0 14px #efefef; }
+      50%  { box-shadow: 0 0 14px #fbfbfb, 0 0 28px #efefef; }
+      100% { box-shadow: 0 0 6px #efefef, 0 0 14px #efefef; }
+    }
+    @keyframes glow-warp {
+      0%   { box-shadow: 0 0 6px #272727, 0 0 14px #272727; }
+      50%  { box-shadow: 0 0 14px #fbfbfb, 0 0 28px #272727; }
+      100% { box-shadow: 0 0 6px #272727, 0 0 14px #272727; }
+    }
+
+
+    .cell[data-powerup="BlackHole"] {
+      animation-name: glow-BlackHole;
+      border-color: #b000ff;
+      color: #b000ff !important;
+      -webkit-text-stroke: 1px white;
+      text-stroke: 1px white;
+    }
+
+    .cell[data-powerup="tidal"] {
+      animation-name: glow-tidal;
+      border-color: #00d0ff;
+      color: #00d0ff !important;
+      -webkit-text-stroke: 1px white;
+      text-stroke: 1px white;
+    }
+
+    @keyframes glow-BlackHole {
+          0%   { box-shadow: 0 0 6px #b000ff, 0 0 14px #b000ff; }
+          50%  { box-shadow: 0 0 14px #f3ceff, 0 0 28px #b000ff; }
+          100% { box-shadow: 0 0 6px #b000ff, 0 0 14px #b000ff; }
+    }
+
+    @keyframes glow-tidal {
+          0%   { box-shadow: 0 0 6px #00d0ff, 0 0 14px #00d0ff; }
+          50%  { box-shadow: 0 0 14px #d7faff, 0 0 28px #00d0ff; }
+          100% { box-shadow: 0 0 6px #00d0ff, 0 0 14px #00d0ff; }
+    }
+
+    .cell[data-wall="1"] {
+      background-color: #121212 !important;
+      color: #888;
+      box-shadow: none;
+      border: 1px solid #555;
+      cursor: default;
+    }
+
+    .message {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      font-size: 2rem;
+      font-weight: bold;
+      display: none;
+      z-index: 10;
+    }
+    .message button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 1.1rem;
+      background: #cd6a45;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #000;
+    }
+    .message button:hover {
+      background: #90462b;
+    }
+    .instructions {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: #888;
+    }
+    .reset-best-btn {
+      margin-top: 8px;
+      padding: 4px 8px;
+      font-size: 0.9rem;
+      background: #2a2a2a;
+      color: #cfcfcf;
+      border: 1px solid #555;
+      border-radius: 5px;
+      cursor: pointer;
+      align-self: flex-end;
+    }
+    .reset-best-btn:hover {
+      background: #3a3a3a;
+      color: #fff;
+    }
+    .confirm-dialog {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      border-radius: 10px;
+      z-index: 20;
+      text-align: center;
+      padding: 20px;
+      font-size: 1rem;
+    }
+    .confirm-dialog button {
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      margin: 0 6px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .confirm-dialog .confirm-yes {
+      background: #cd6a45;
+      color: #000;
+    }
+    .confirm-dialog .confirm-no {
+      background: #444;
+      color: #fff;
+    }
+       .bonus {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #e4e3af;
+    }
+    .powerup-key {
+      background: #1e1e1e;
+      border-radius: 10px;
+      padding: 14px 16px;
+      border: 1px solid #333;
+      width: min(100%, 100vw - 32px);
+      max-width: 420px;
+      max-height: 220px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      font-size: 0.9rem;
+      margin: 0 auto;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+}
+    .powerup-key h2 {
+      margin: 0 0 8px 0;
+      font-size: 1.1rem;
+      color: #cd6a45;
+    }
+    .powerup-key ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      overscroll-behavior: contain;
+    }
+    .powerup-key li {
+      margin-bottom: 6px;
+    }
+    .powerup-name {
+      font-weight: bold;
+      color: #f4eddf;
+    }
+    .color-chip {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border: 1px solid #555;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    
+
+
+/* 2. Responsive layout for mobile / smaller screens */
+@media (max-width: 850px) {
+  /* Stacks the game grid and the powerups panel vertically */
+  .main-layout {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Centers the game board on the screen */
+  .game-container {
+    margin: 10px auto;
+  }
+
+  /* Standardizes the sidebar width on mobile screens */
+  .powerup-key {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+}
+
+/* 3. HTML Clean-up Rule (Fixes a missing </li> in your markup) */
+.powerup-key ul {
+  padding-left: 0;
+  list-style: none;
+}
+.powerup-key li {
+  margin-bottom: 12px;
+}
+
+.powerup-key::-webkit-scrollbar {
+  width: 8px;
+}
+.powerup-key::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 4px;
+}
+
+@media (max-width: 850px) {
+  .powerup-key {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+  }
+}
+/* 1. Base slide states */
+.cell.sliding-snap {
+  transform: translate(var(--slide-x, 0px), var(--slide-y, 0px)) !important;
+  transition: none !important;
+  z-index: 10;
+}
+
+.cell.sliding-glide {
+  transform: translate(0px, 0px) !important;
+  /* Smoother, punchier slowdown animation curve over 210ms */
+  transition: transform 210ms cubic-bezier(0.19, 1, 0.22, 1) !important;
+}
+
+/* 2. Whoosh line trails (Only render when the tile is actively gliding) */
+.cell.sliding-glide::before,
+.cell.sliding-glide::after {
+  content: "";
+  position: absolute;
+  background: linear-gradient(var(--whoosh-deg), var(--bg-color, #444) 30%, transparent 100%);
+  opacity: 0.6;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: -1; /* Tucks the lines underneath the tile face */
+}
+
+/* Line 1: Main centered streak */
+.cell.sliding-glide::before {
+  width: var(--whoosh-w);
+  height: var(--whoosh-h);
+  top: var(--whoosh-top1);
+  left: var(--whoosh-left1);
+}
+
+/* Line 2: Slightly offset parallel streak for extra speed flavor */
+.cell.sliding-glide::after {
+  width: var(--whoosh-w);
+  height: var(--whoosh-h);
+  top: var(--whoosh-top2);
+  left: var(--whoosh-left2);
+}
+
+
+.particle-container {
+  position: absolute;
+  pointer-events: none;
+  z-index: 9999 !important;
+}
+
+.sparkle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--p-size, 8px);
+  height: var(--p-size, 8px);
+  border-radius: 0;
+  background-color: var(--p-color, #00ffcc);
+  transform: translate(-50%, -50%) rotate(45deg);
+  pointer-events: none;
+  
+  animation: 
+    firework-burst 0.85s cubic-bezier(0.05, 0.7, 0.1, 1) forwards,
+    firework-shimmer 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes firework-burst {
+  0% {
+    transform: translate(-50%, -50%) rotate(45deg) scale(1.5); /* Starts slightly larger for a punchier blast impact */
+    opacity: 1;
+    filter: drop-shadow(0 0 2px var(--p-color)) brightness(1.5);
+  }
+  50% {
+    filter: drop-shadow(0 0 8px var(--p-color)) brightness(2); /* Peak neon glow mid-flight */
+  }
+  100% {
+    transform: translate(var(--mx), var(--my)) rotate(45deg) scale(0.0);
+    opacity: 0;
+    filter: drop-shadow(0 0 0px transparent) brightness(1);
+  }
+}
+
+@keyframes firework-shimmer {
+  0% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.grid-rumble {
+  animation: grid-shake-action 0.25s cubic-bezier(.36,.07,.19,.97) both;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+@keyframes grid-shake-action {
+  10%, 90% { transform: translate3d(-2px, -1px, 0); }
+  20%, 80% { transform: translate3d(3px, 2px, 0); }
+  30%, 50%, 70% { transform: translate3d(-5px, -3px, 0); }
+  40%, 60% { transform: translate3d(5px, 4px, 0); }
+}
+  /* Score: keep label and numbers on one line; base font used by auto-fit script */
+  .score-container { white-space: nowrap; }
+  #score, #high-score {
+    display: inline-block;
+    white-space: nowrap;
+    line-height: 1;
+    font-size: 1.2rem;
+    vertical-align: middle;
+  }
+
+</style>
+
+  </style>
+</head>
+<body>
+
+  <h1>AUGHT <span style="font-size:1.5rem; color:#e4e3af;">Match Game</span></h1>
+  
+  <!-- Combined score container with a built-in horizontal flexbox -->
+  <div class="score-container" style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+    <div>Score: <span id="score">0</span></div>
+    
+    <!-- Clean, subtle separator border to space them out elegantly -->
+    <div style="color: #505050; border-left: 1px solid #333; padding-left: 15px;">
+      Best: <span id="high-score" style="color: var(--best-color, #dfa968); font-weight: bold; transition: color 0.4s ease;">0</span>
+    </div>
+  </div> <!-- This cleanly wraps BOTH elements inside the container background shadow -->
+
+
+  <div class="main-layout">
+<div class="game-container">
+    <div class="grid" id="grid"></div>
+    <div class="message" id="game-message">
+      <div id="message-text">Game Over!</div>
+      <button onclick="resetGame()">Play Again</button>
+    </div>
+    <div class="confirm-dialog" id="confirm-dialog">
+      <div>Reset Best Score?</div>
+      <div style="display:flex; gap:8px; margin-top: 4px;">
+        <button class="confirm-yes" onclick="confirmResetBest(true)">Yes</button>
+        <button class="confirm-no" onclick="confirmResetBest(false)">No</button>
+      </div>
+    </div>
+  </div>
+
+    <div class="powerup-key">
+      <h2>Power-Ups</h2>
+      <ul>
+      <!--  <li><span class="color-chip" style="background:#efefef;"></span><span class="powerup-name">Link:</span> A random lesser value tile on the board raises its value to this tile's value</li>. -->
+        <li><span class="color-chip" style="background:#00d0ff;"></span><span class="powerup-name">Tidal:</span> Shuffles all tiles on the board including the wall</li>
+        <li><span class="color-chip" style="background:#00ff55;"></span><span class="powerup-name">Growth:</span> Force matching tiles to merge; if no matches are available, consume lowest adjacent tile to grow</li>
+        <li><span class="color-chip" style="background:#fffc35;"></span><span class="powerup-name">Boost:</span> Boost all lowest level tiles and also this raises the board minimum tile value level</li>
+        <li><span class="color-chip" style="background:#e88309;"></span><span class="powerup-name">Justify:</span> Order all tiles at the top of the board starting with the largest valued tiles</li>
+        <li><span class="color-chip" style="background:#ff3030;"></span><span class="powerup-name">Explode:</span> Explode tile's value into new tiles scattered on the board & also reduces boost level effect</li>
+        <li><span class="color-chip" style="background:#b000ff;"></span><span class="powerup-name">Void:</span> Clear & Score all tiles in either a row or column</li>
+        <li><span class="color-chip" style="background:#121212;"></span><span class="powerup-name">Wall:</span> Solid barrier Wall</li>
+       </ul>
+       
+        <div class="bonus">x50 Merge Bonus on Powered-up Tiles!<br><br>
+          +100 Points on Power-up use!</div>
+
+        
+
+    
+
+   <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 20px; margin-top: 15px;">
+    
+    <div class="instructions" style="margin: 0; text-align: left; max-width: 65%;">
+      <b>Swipe to move tiles</b>, merge matching tiles to score points. Click glowing tiles to activate powerups.
+    </div>
+
+    <!-- Audio Controls Panel with integrated volume slider -->
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;">
+      <div class="audio-controls-wrapper" style="display: flex; align-items: center; gap: 10px; border-left: 1px solid #333; padding-left: 12px;">
+        <button id="play-pause-btn" onclick="togglePlayPauseMusic()" style="background: none; border: none; color: #00ffcc; cursor: pointer; font-size: 1.1rem; padding: 0; display: inline-flex; align-items: center;">⏵</button>
+        
+        <!-- Sleek minimalist volume slider -->
+        <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="0.5" oninput="adjustMusicVolume(this.value)" style="width: 60px; height: 4px; accent-color: #00ffcc; background: #333; border-radius: 2px; cursor: pointer; -webkit-appearance: none;">
+        
+        <button id="mute-btn" onclick="toggleMuteMusic()" style="background: none; border: none; color: #adadad; cursor: pointer; font-size: 1.1rem; padding: 0; display: inline-flex; align-items: center;">🔊</button>
+      </div>
+      <button class="reset-best-btn" onclick="showResetBestDialog()">Reset Best</button>
+    </div>
+
+  </div>
+
+  
+  </div>
+  </div>
+
+  
+
+  <script>
+    const SIZE = 4;
+
+    let board = [];
+    let score = 0;
+    let spawnMultiplier = 1; 
+    let gameOver = false;
+    let gameWon = false;
+
+    const MAX_POWERUPS = 2;
+    const MAX_WALLS = 1;
+    const adjacencyMultiplierTiles = new Set();
+
+const ENABLED_POWERUPS = {
+  boost: true,
+  explode: true,
+  grow: true,
+  link: false,
+  justify: true,
+  warp: false,
+  BlackHole: true,
+  tidal: true
+};
+
+const POWERUPS =
+  Object.keys(ENABLED_POWERUPS)
+    .filter(key => ENABLED_POWERUPS[key]);
+
+    const gridElement = document.getElementById('grid');
+    const scoreElement = document.getElementById('score');
+    const messageElement = document.getElementById('game-message');
+    const messageText = document.getElementById('message-text');
+
+    const managedTimers = new Set();
+
+    function enableHardwareAcceleration() {
+      const root = document.documentElement;
+      const body = document.body;
+      if (!root || !body) return;
+
+      root.classList.add('gpu-accelerated');
+      body.classList.add('gpu-accelerated');
+
+      const acceleratedElements = root.querySelectorAll('.game-container, .cell, .particle-container, .sparkle');
+      acceleratedElements.forEach(element => {
+        element.style.transform = 'translateZ(0)';
+        element.style.backfaceVisibility = 'hidden';
+        element.style.willChange = 'transform, opacity';
+      });
+    }
+
+    function scheduleManagedTimeout(callback, delay) {
+      const id = window.setTimeout(() => {
+        managedTimers.delete(id);
+        callback();
+      }, delay);
+      managedTimers.add(id);
+      return id;
+    }
+
+    function scheduleManagedInterval(callback, delay) {
+      const id = window.setInterval(() => {
+        callback();
+      }, delay);
+      managedTimers.add(id);
+      return id;
+    }
+
+    function clearManagedTimer(id) {
+      if (!id) return;
+      managedTimers.delete(id);
+      window.clearTimeout(id);
+      window.clearInterval(id);
+    }
+
+    function clearManagedTimers() {
+      managedTimers.forEach(clearManagedTimer);
+      managedTimers.clear();
+      if (musicLoopTimeout) {
+        window.clearTimeout(musicLoopTimeout);
+        musicLoopTimeout = null;
+      }
+      if (audioCtx && audioCtx.state === 'running') {
+        audioCtx.suspend().catch(() => {});
+      }
+    }
+
+    window.addEventListener('pagehide', clearManagedTimers);
+    window.addEventListener('beforeunload', clearManagedTimers);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) clearManagedTimers();
+    });
+
+    function getTileDisplayValue(value) {
+      if (value <= 0) return '';
+    if (value >= 68719476736) return 'Z';
+    if (value >= 34359738368) return 'Y';
+    if (value >= 17179869184) return 'X';
+    if (value >= 8589934592) return 'W';
+    if (value >= 4294967296) return 'V';
+    if (value >= 2147483648) return 'U';
+    if (value >= 1073741824) return 'T';
+    if (value >= 536870912) return 'S';
+    if (value >= 268435456) return 'R';
+    if (value >= 134217728) return 'Q';
+    if (value >= 67108864) return 'P';
+    if (value >= 33554432) return 'O';
+    if (value >= 16777216) return 'N';
+    if (value >= 8388608) return 'M';
+    if (value >= 4194304) return 'L';
+    if (value >= 2097152) return 'K';
+    if (value >= 1048576) return 'J';
+    if (value >= 524288) return 'I';
+    if (value >= 262144) return 'H';
+    if (value >= 131072) return 'G';
+    if (value >= 65536) return 'F';
+    if (value >= 32768) return 'E';
+    if (value >= 16384) return 'D';
+    if (value >= 8192) return 'C';
+    if (value >= 4096) return 'B';
+    if (value >= 2048) return 'A';
+      return value;
+    }
+
+    function createFireworkBurst(xOffset, yOffset, tileValue, isSecondary = false, particleScale = 1) {
+      const gameContainer = document.querySelector('.game-container');
+      if (!gameContainer) return;
+
+      const container = document.createElement('div');
+      container.className = 'particle-container';
+      container.style.position = 'absolute';
+      container.style.top = yOffset + 'px';
+      container.style.left = xOffset + 'px';
+      container.style.width = '0px';
+      container.style.height = '0px';
+
+      gameContainer.appendChild(container);
+
+      const particleColor = getTileColor(tileValue);
+      const particleCount = Math.max(12, Math.round((isSecondary ? 40 : 65) * particleScale));
+      const fragment = document.createDocumentFragment();
+
+      for (let i = 0; i < particleCount; i++) {
+        const spark = document.createElement('div');
+        spark.className = 'sparkle';
+
+        const angle = (i / particleCount) * 2 * Math.PI + (Math.random() * 0.4);
+        const distance = isSecondary ? 45 + Math.random() * 45 : 70 + Math.random() * 70;
+        const mx = Math.cos(angle) * distance + 'px';
+        const my = Math.sin(angle) * distance + 'px';
+        const randomSize = isSecondary ? 3 + Math.random() * 7 + 'px' : 4 + Math.random() * 9 + 'px';
+
+        spark.style.setProperty('--mx', mx);
+        spark.style.setProperty('--my', my);
+        spark.style.setProperty('--p-size', randomSize);
+        spark.style.setProperty('--p-color', particleColor);
+        spark.style.animationDelay = isSecondary ? `${Math.random() * 0.04}s, 0s` : `${Math.random() * 0.06}s, 0s`;
+
+        fragment.appendChild(spark);
+      }
+
+      container.appendChild(fragment);
+      scheduleManagedTimeout(() => container.remove(), isSecondary ? 700 : 850);
+    }
+
+    function createFireworkBurstAtElement(targetElement, tileValue, isSecondary = false, particleScale = 1) {
+      const gameContainer = document.querySelector('.game-container');
+      if (!targetElement || !gameContainer) return;
+
+      const rect = targetElement.getBoundingClientRect();
+      const containerRect = gameContainer.getBoundingClientRect();
+      const xOffset = rect.left - containerRect.left + (rect.width / 2);
+      const yOffset = rect.top - containerRect.top + (rect.height / 2);
+
+      createFireworkBurst(xOffset, yOffset, tileValue, isSecondary, particleScale);
+    }
+
+    function triggerExponentialWin() {
+      if (gameWon || gameOver) return;
+
+      score *= 100;
+      gameWon = true;
+      gameOver = true;
+
+      const scoreUi = document.getElementById('score');
+      if (scoreUi) {
+        scoreUi.innerText = score;
+        scoreUi.style.setProperty('--score-color', calculateScoreColor(score));
+      }
+
+      const currentHighScore = parseInt(localStorage.getItem('aught_game_highscore')) || 0;
+      if (score > currentHighScore) {
+        localStorage.setItem('aught_game_highscore', score);
+      }
+      updateHighScoreDisplay();
+
+      const scoreColor = calculateScoreColor(score);
+      messageText.innerHTML = `
+        <div style="font-size: 2.1rem; margin-bottom: 0.45rem; color: #fff7a8;">Exponential Win!</div>
+        <div id="win-score-display" style="font-size: 1.15rem; color: ${scoreColor};">Final Score: ${score}</div>
+      `;
+      messageElement.style.display = 'flex';
+
+      const winScoreDisplay = document.getElementById('win-score-display');
+      if (winScoreDisplay) {
+        let burstCount = 0;
+        const burstLoop = scheduleManagedInterval(() => {
+          createFireworkBurstAtElement(winScoreDisplay, 32768, burstCount % 2 === 0);
+          burstCount++;
+          if (burstCount > 10) clearManagedTimer(burstLoop);
+        }, 180);
+      }
+    }
+
+    function lockScreenOrientation() {
+      const orientation = screen.orientation || screen.mozOrientation || screen.msOrientation;
+      if (orientation && typeof orientation.lock === 'function') {
+        orientation.lock('portrait').catch(() => {});
+      }
+    }
+
+    window.addEventListener('load', lockScreenOrientation);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) lockScreenOrientation();
+    });
+
+    function keyFor(r, c) { return `${r},${c}`; }
+    function clearMultiplier() { adjacencyMultiplierTiles.clear(); }
+
+function updateHighScoreDisplay() {
+  const savedHighScore = parseInt(localStorage.getItem('aught_game_highscore')) || 0;
+  const highScoreElement = document.getElementById('high-score');
+  
+  if (highScoreElement) {
+    highScoreElement.innerText = savedHighScore;
+    
+    // Automatically colors the Best score based on its saved value [1]
+    const historicalColor = calculateScoreColor(savedHighScore);
+    highScoreElement.style.setProperty('--best-color', historicalColor);
+  }
+}
+
+function calculateScoreColor(targetScore) {
+  if (targetScore < 115) {
+    return "#d1d8e0"; // Default light grey
+  }
+  
+  const logValue = Math.log2(targetScore);
+  const scaledExponent = Math.floor(0.66 * logValue - 0.55);
+  const safeExponent = Math.max(3, Math.min(18, scaledExponent));
+  const currentMilestone = Math.pow(2, safeExponent);
+  
+  return getTileColor(currentMilestone);
+}
+
+
+
+
+    /// ALL EVEN GAMEPLAY HELPER 
+function makeEven(value) { 
+  return Math.floor(value / 2) * 2;
+}
+///
+
+    function setMultiplierAround(r, c) {
+      adjacencyMultiplierTiles.clear();
+      const dirs = [
+        [1,0],[-1,0],[0,1],[0,-1],
+        [1,1],[1,-1],[-1,1],[-1,-1]
+      ];
+      dirs.forEach(([dr, dc]) => {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE)
+          adjacencyMultiplierTiles.add(keyFor(nr, nc));
+      });
+    }
+
+function addScore(value, r, c) {
+  if (value <= 0) return;
+  const key = keyFor(r, c);
+  
+  // Calculate the new score total
+  score += adjacencyMultiplierTiles.has(key) ? value * 3 : value;
+
+  // 1. Update current score text on the screen
+  const scoreElement = document.getElementById('score');
+  if (scoreElement) {
+    scoreElement.innerText = score;
+
+    // Calculate and apply current score color
+    const currentScoreColor = calculateScoreColor(score);
+    scoreElement.style.setProperty('--score-color', currentScoreColor);
+
+    // --- LIVE HIGH SCORE TRACKING ---
+    let savedHighScore = parseInt(localStorage.getItem('aught_game_highscore')) || 0;
+    
+    if (score > savedHighScore) {
+      localStorage.setItem('aught_game_highscore', score);
+      
+      const highScoreElement = document.getElementById('high-score');
+      if (highScoreElement) {
+        highScoreElement.innerText = score;
+        
+        // Live update the Best score's color variable as they break the record [1]
+        highScoreElement.style.setProperty('--best-color', currentScoreColor);
+      }
+    }
+  }
+}
+
+
+
+
+    function getPowerupCount() {
+      let count = 0;
+      for (let r = 0; r < SIZE; r++)
+        for (let c = 0; c < SIZE; c++)
+          if (board[r][c].powerup) count++;
+      return count;
+    }
+
+    function randomPowerup() {
+      return POWERUPS[Math.floor(Math.random() * POWERUPS.length)];
+    }
+
+    function getTileColor(value) {
+  if (value <= 0) return "#121212"; // Ground/empty grid background
+
+  switch (value) {
+    case 2:  return "#515151"; // Medium Slate Grey
+    case 4:  return "#828282"; // Light Fog Grey
+
+    case 8:    return "#74b9d5"; // Sky Blue
+    case 16:   return "#4b7bec"; // Royal Blue
+    case 32:   return "#1ca17b"; // Emerald / Teal
+    case 64:   return "#94d053"; // Light Green / Lime
+    case 128:  return "#dfa968"; // Sand / Ochre Gold
+    case 256:  return "#cd6a45"; // Terracotta / Coral Orange
+    case 512:  return "#e55ca1"; // Vibrant Pink
+    case 1024: return "#a55eea"; // Bright Orchid Purple
+    case 2048: return "#4536e4"; // Deep Indigo Blue
+    case 4096: return "#eb4d55"; // Crimson Red
+    case 8192: return "#2ee545"; // Neon Electric Green
+    case 16384:  return "#ff9f43"; // Neon Tangerine Orange
+    case 32768:  return "#be2edd"; // Deep Psychedelic Violet
+    case 65536:  return "#00d2d3"; // Electric Cyan Blue
+    case 131072: return "#ff4757"; // Coral Rose Red
+    case 262144: return "#ffa502"; // Bright Sun Yellow
+
+    // Fallback block
+    default:   return "#1b1464"; // Deep Midnight Space Blue
+  }
+}
+
+function rollPowerups() {
+  // 1. Global Turn-Based Rate Limiter (Adjust this fraction to balance)
+  // 1/8 means there is only a 12.5% chance that ANY power-up spawns this turn.
+  if (Math.random() > 1 / 10) return;
+
+  // Respect the maximum power-up limit on the board
+  let count = getPowerupCount();
+  if (count >= MAX_POWERUPS) return;
+
+  // Gather all tiles that are eligible to host a power-up (value 8 or higher, no walls)
+  const eligibleCells = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = board[r][c];
+      if (cell.wall || cell.value < 8 || cell.powerup) continue;
+      eligibleCells.push(cell);
+    }
+  }
+
+  // If there are eligible cells, pick exactly ONE random cell to receive the power-up
+  if (eligibleCells.length > 0) {
+    const idx = Math.floor(Math.random() * eligibleCells.length);
+    const targetCell = eligibleCells[idx];
+    
+    targetCell.powerup = randomPowerup();
+  }
+}
+
+
+
+    function createGrid() {
+      gridElement.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          const cell = document.createElement('div');
+          cell.classList.add('cell');
+          cell.id = `cell-${r}-${c}`;
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+          cell.addEventListener('click', onCellClick);
+          fragment.appendChild(cell);
+        }
+      }
+      gridElement.appendChild(fragment);
+      enableHardwareAcceleration();
+    }
+
+    function spawnWalls() {
+      let placed = 0;
+      const positions = [];
+      for (let r = 0; r < SIZE; r++)
+        for (let c = 0; c < SIZE; c++)
+          positions.push({ r, c });
+
+      while (placed < MAX_WALLS && positions.length > 0) {
+        const idx = Math.floor(Math.random() * positions.length);
+        const { r, c } = positions.splice(idx, 1)[0];
+        board[r][c].wall = true;
+        board[r][c].value = 0;
+        board[r][c].powerup = null;
+        placed++;
+      }
+    }
+
+function showResetBestDialog() {
+  const dialog = document.getElementById('confirm-dialog');
+  if (dialog) {
+    dialog.style.display = 'flex';
+  }
+}
+
+function confirmResetBest(confirmed) {
+  const dialog = document.getElementById('confirm-dialog');
+  if (dialog) {
+    dialog.style.display = 'none';
+  }
+  if (!confirmed) return;
+  localStorage.setItem('aught_game_highscore', '0');
+  updateHighScoreDisplay();
+}
+
+function resetGame() {
+  // 1. Reset all state values FIRST so future calculations are accurate
+  score = 0;
+  gameOver = false;
+  gameWon = false;
+  spawnMultiplier = 1; 
+  clearMultiplier();
+
+  // --- NEW: REFRESH HIGH SCORE DISPLAY ON GAME RESET ---
+  updateHighScoreDisplay();
+  // -----------------------------------------------------
+
+  // 2. Wipe the logical board data clean
+  board = Array.from({ length: SIZE }, () =>
+    Array.from({ length: SIZE }, () => ({ value: 0, powerup: null, wall: false }))
+  );
+
+  // 3. Reset the UI elements
+  messageElement.style.display = 'none';
+  messageText.innerText = 'Game Over!';
+  const scoreElement = document.getElementById('score');
+  if (scoreElement) {
+    scoreElement.innerText = "0";
+    scoreElement.style.setProperty('--score-color', '#828282');
+  }
+
+  // 4. Generate the new starting board assets
+  spawnWalls();
+  addRandomTile(); 
+  addRandomTile(); 
+  rollPowerups();
+  updateDOM();
+}
+
+
+
+function addRandomTile() {
+  const emptyCells = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (!board[r][c].wall && board[r][c].value === 0) {
+        emptyCells.push({ r, c });
+      }
+    }
+  }
+
+  if (emptyCells.length > 0) {
+    const { r, c } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    
+    // Base tile generation (90% chance of 2, 10% chance of 4)
+    const baseValue = Math.random() < 0.9 ? 2 : 4;
+    
+    // Multiplies by the current game multiplier state
+    board[r][c].value = baseValue * spawnMultiplier; 
+    board[r][c].powerup = null;
+  }
+}
+
+
+function updateDOM() {
+  scoreElement.innerText = score;
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const { value, powerup, wall } = board[r][c];
+      const cell = gridElement.children[r * SIZE + c];
+
+      cell.setAttribute('data-wall', wall ? '1' : '0');
+
+      if (wall) {
+        cell.innerText = '';
+        cell.removeAttribute('data-powerup');
+        cell.style.removeProperty('--bg-color');
+        continue;
+      }
+
+      const displayValue = value === 0 ? '' : getTileDisplayValue(value);
+      cell.textContent = displayValue;
+      cell.setAttribute('data-value', value);
+      cell.classList.toggle('alphabet-tile', typeof displayValue === 'string' && /[A-E]/.test(displayValue));
+
+      // Normal tile background color
+      const color = getTileColor(value);
+      cell.style.setProperty('--bg-color', color);
+
+      // Apply powerup visuals
+      if (powerup) {
+        cell.setAttribute('data-powerup', powerup);
+      } else {
+        cell.removeAttribute('data-powerup');
+      }
+    }
+  }
+}
+
+function triggerSlideAnimation(direction) {
+  const cells = document.querySelectorAll('.cell');
+  
+  cells.forEach(cell => {
+    // Explicit safety filter: only touch real, non-zero game numbers
+    if (cell.getAttribute('data-value') !== '0' && cell.getAttribute('data-wall') !== '1') {
+      
+      // Reset slide offsets and configure custom directional speed lines
+      if (direction === 'LEFT') {
+        cell.style.setProperty('--slide-x', '35px');
+        cell.style.setProperty('--slide-y', '0px');
+        cell.style.setProperty('--whoosh-deg', '90deg'); // Fades right-to-left
+        cell.style.setProperty('--whoosh-w', '40px');
+        cell.style.setProperty('--whoosh-h', '3px');
+        cell.style.setProperty('--whoosh-top1', '25%');  cell.style.setProperty('--whoosh-left1', '100%');
+        cell.style.setProperty('--whoosh-top2', '70%');  cell.style.setProperty('--whoosh-left2', '100%');
+      } else if (direction === 'RIGHT') {
+        cell.style.setProperty('--slide-x', '-35px');
+        cell.style.setProperty('--slide-y', '0px');
+        cell.style.setProperty('--whoosh-deg', '-90deg');
+        cell.style.setProperty('--whoosh-w', '40px');
+        cell.style.setProperty('--whoosh-h', '3px');
+        cell.style.setProperty('--whoosh-top1', '30%');  cell.style.setProperty('--whoosh-left1', '-40px');
+        cell.style.setProperty('--whoosh-top2', '75%');  cell.style.setProperty('--whoosh-left2', '-40px');
+      } else if (direction === 'UP') {
+        cell.style.setProperty('--slide-x', '0px');
+        cell.style.setProperty('--slide-y', '35px');
+        cell.style.setProperty('--whoosh-deg', '180deg'); // Fades bottom-to-top
+        cell.style.setProperty('--whoosh-w', '3px');
+        cell.style.setProperty('--whoosh-h', '40px');
+        cell.style.setProperty('--whoosh-top1', '100%');  cell.style.setProperty('--whoosh-left1', '25%');
+        cell.style.setProperty('--whoosh-top2', '100%');  cell.style.setProperty('--whoosh-left2', '70%');
+      } else if (direction === 'DOWN') {
+        cell.style.setProperty('--slide-x', '0px');
+        cell.style.setProperty('--slide-y', '-35px');
+        cell.style.setProperty('--whoosh-deg', '0deg');
+        cell.style.setProperty('--whoosh-w', '3px');
+        cell.style.setProperty('--whoosh-h', '40px');
+        cell.style.setProperty('--whoosh-top1', '-40px'); cell.style.setProperty('--whoosh-left1', '30%');
+        cell.style.setProperty('--whoosh-top2', '-40px'); cell.style.setProperty('--whoosh-left2', '75%');
+      }
+
+      cell.classList.add('sliding-snap');
+      
+      requestAnimationFrame(() => {
+        scheduleManagedTimeout(() => {
+          cell.classList.remove('sliding-snap');
+          cell.classList.add('sliding-glide');
+        }, 5);
+      });
+    }
+  });
+
+  // Clean up all classes and variables after the slower 210ms slide finishes
+  scheduleManagedTimeout(() => {
+    cells.forEach(cell => {
+      cell.classList.remove('sliding-glide');
+      cell.style.removeProperty('--slide-x');
+      cell.style.removeProperty('--slide-y');
+      cell.style.removeProperty('--whoosh-deg');
+      cell.style.removeProperty('--whoosh-w');
+      cell.style.removeProperty('--whoosh-h');
+      cell.style.removeProperty('--whoosh-top1'); cell.style.removeProperty('--whoosh-left1');
+      cell.style.removeProperty('--whoosh-top2'); cell.style.removeProperty('--whoosh-left2');
+    });
+  }, 210); 
+}
+
+function slideSegment(cells, coordForIndex) {
+  let filtered = cells.filter(cell => cell.value !== 0);
+
+  for (let i = 0; i < filtered.length - 1; i++) {
+    const current = filtered[i];
+    const next = filtered[i + 1];
+
+    if (current.value === next.value && current.value !== 0) {
+      const mergedValue = current.value * 2;
+      const isExponentialWinMerge = current.value === 32768 && next.value === 32768;    // SET WIN CONDITION HERE
+
+      // --- DETECT WHEN A POWERUP TILE IS MERGED ---
+      if (current.powerup || next.powerup) {
+        score += mergedValue * 50; 
+        
+        playPowerupMergeSFX();
+
+        const targetCoord = coordForIndex(i);
+        if (targetCoord && typeof targetCoord.r !== 'undefined') {
+          createFireworkAnimation(targetCoord.r, targetCoord.c, mergedValue, true);
+        }
+      }
+
+      current.value = mergedValue;
+      current.powerup = null;
+      next.value = 0;
+      next.powerup = null;
+
+      const { r, c } = coordForIndex(i);
+      addScore(mergedValue, r, c);
+
+      if (isExponentialWinMerge) {
+        triggerExponentialWin();
+      }
+    }
+  }
+
+  filtered = filtered.filter(cell => cell.value !== 0);
+  while (filtered.length < cells.length)
+    filtered.push({ value: 0, powerup: null, wall: false });
+
+  return filtered;
+}
+
+
+function slideRowLeft(r) {
+  const row = board[r];
+  const newRow = Array.from({ length: SIZE }, () => ({ value: 0, powerup: null, wall: false }));
+
+  let start = 0;
+  for (let c = 0; c < SIZE; c++) {
+    if (row[c].wall) {
+      if (c > start) {
+        const segment = row.slice(start, c).map(x => ({ ...x, wall: false }));
+        const slid = slideSegment(segment, idx => ({ r, c: start + idx }));
+        slid.forEach((cell, i) => newRow[start + i] = cell);
+      }
+      newRow[c] = { value: 0, powerup: null, wall: true };
+      start = c + 1;
+    }
+  }
+
+  if (start < SIZE) {
+    const segment = row.slice(start).map(x => ({ ...x, wall: false }));
+    const slid = slideSegment(segment, idx => ({ r, c: start + idx }));
+    slid.forEach((cell, i) => newRow[start + i] = cell);
+  }
+
+  board[r] = newRow;
+}
+
+function slideRowRight(r) {
+  const row = board[r];
+  const newRow = Array.from({ length: SIZE }, () => ({ value: 0, powerup: null, wall: false }));
+
+  let end = SIZE - 1;
+  for (let c = SIZE - 1; c >= 0; c--) {
+    if (row[c].wall) {
+      if (c < end) {
+        const segment = row.slice(c + 1, end + 1).map(x => ({ ...x, wall: false }));
+        const reversed = segment.slice().reverse();
+        const slid = slideSegment(reversed, idx => ({ r, c: end - idx })).reverse();
+        slid.forEach((cell, i) => newRow[c + 1 + i] = cell);
+      }
+      newRow[c] = { value: 0, powerup: null, wall: true };
+      end = c - 1;
+    }
+  }
+
+  if (end >= 0) {
+    const segment = row.slice(0, end + 1).map(x => ({ ...x, wall: false }));
+    const reversed = segment.slice().reverse();
+    const slid = slideSegment(reversed, idx => ({ r, c: end - idx })).reverse();
+    slid.forEach((cell, i) => newRow[i] = cell);
+  }
+
+  board[r] = newRow;
+}
+
+function slideColUp(c) {
+  const col = board.map(row => row[c]);
+  const newCol = Array.from({ length: SIZE }, () => ({ value: 0, powerup: null, wall: false }));
+
+  let start = 0;
+  for (let r = 0; r < SIZE; r++) {
+    if (col[r].wall) {
+      if (r > start) {
+        const segment = col.slice(start, r).map(x => ({ ...x, wall: false }));
+        const slid = slideSegment(segment, idx => ({ r: start + idx, c }));
+        slid.forEach((cell, i) => newCol[start + i] = cell);
+      }
+      newCol[r] = { value: 0, powerup: null, wall: true };
+      start = r + 1;
+    }
+  }
+
+  if (start < SIZE) {
+    const segment = col.slice(start).map(x => ({ ...x, wall: false }));
+    const slid = slideSegment(segment, idx => ({ r: start + idx, c }));
+    slid.forEach((cell, i) => newCol[start + i] = cell);
+  }
+
+  for (let r = 0; r < SIZE; r++) board[r][c] = newCol[r];
+}
+
+function slideColDown(c) {
+  const col = board.map(row => row[c]);
+  const newCol = Array.from({ length: SIZE }, () => ({ value: 0, powerup: null, wall: false }));
+
+  let end = SIZE - 1;
+  for (let r = SIZE - 1; r >= 0; r--) {
+    if (col[r].wall) {
+      if (r < end) {
+        const segment = col.slice(r + 1, end + 1).map(x => ({ ...x, wall: false }));
+        const reversed = segment.slice().reverse();
+        const slid = slideSegment(reversed, idx => ({ r: end - idx, c })).reverse();
+        slid.forEach((cell, i) => newCol[r + 1 + i] = cell);
+      }
+      newCol[r] = { value: 0, powerup: null, wall: true };
+      end = r - 1;
+    }
+  }
+
+  if (end >= 0) {
+    const segment = col.slice(0, end + 1).map(x => ({ ...x, wall: false }));
+    const reversed = segment.slice().reverse();
+    const slid = slideSegment(reversed, idx => ({ r: end - idx, c })).reverse();
+    slid.forEach((cell, i) => newCol[i] = cell);
+  }
+
+  for (let r = 0; r < SIZE; r++) board[r][c] = newCol[r];
+}
+
+function move(direction) {
+  if (gameOver) return;
+  clearMultiplier();
+
+  const oldBoard = JSON.stringify(board);
+
+  if (direction === 'LEFT')  for (let r = 0; r < SIZE; r++) slideRowLeft(r);
+  if (direction === 'RIGHT') for (let r = 0; r < SIZE; r++) slideRowRight(r);
+  if (direction === 'UP')    for (let c = 0; c < SIZE; c++) slideColUp(c);
+  if (direction === 'DOWN')  for (let c = 0; c < SIZE; c++) slideColDown(c);
+
+  if (oldBoard !== JSON.stringify(board)) {
+    playSwooshSFX();
+    addRandomTile();
+    rollPowerups();
+    if (!gameWon) checkGameOver();
+    
+    // Pass the direction into the animation trigger BEFORE updating the layout
+    triggerSlideAnimation(direction); 
+    updateDOM();
+  }
+}
+
+
+
+
+function checkGameOver() {
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = board[r][c];
+      if (!cell.wall && cell.value === 0) return;
+
+      if (!cell.wall) {
+        if (c < SIZE - 1) {
+          const right = board[r][c + 1];
+          if (!right.wall && right.value === cell.value) return;
+        }
+        if (r < SIZE - 1) {
+          const down = board[r + 1][c];
+          if (!down.wall && down.value === cell.value) return;
+        }
+      }
+    }
+  }
+
+  gameOver = true;
+  messageText.innerText = "Game Over!";
+  messageElement.style.display = 'flex';
+}
+
+function getNeighbors(r, c) {
+  const dirs = [
+    [1,0],[-1,0],[0,1],[0,-1],
+    [1,1],[1,-1],[-1,1],[-1,-1]
+  ];
+  return dirs
+    .map(([dr, dc]) => ({ r: r + dr, c: c + dc }))
+    .filter(({ r, c }) => r >= 0 && r < SIZE && c >= 0 && c < SIZE);
+}
+
+
+function createFireworkAnimation(r, c, tileValue, isSecondary = false, particleScale = 1) {
+  const cellElements = document.querySelectorAll('.cell');
+  const targetIndex = r * SIZE + c; 
+  const targetElement = cellElements[targetIndex];
+
+  if (!targetElement) return;
+
+  createFireworkBurstAtElement(targetElement, tileValue, isSecondary, particleScale);
+}
+
+
+
+
+
+
+function shuffleBoardPositions(exemptR, exemptC) {
+  const snapshots = [];
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (r === exemptR && c === exemptC) continue;
+      snapshots.push({
+        value: board[r][c].value,
+        powerup: board[r][c].powerup,
+        wall: board[r][c].wall
+      });
+    }
+  }
+
+  for (let i = snapshots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [snapshots[i], snapshots[j]] = [snapshots[j], snapshots[i]];
+  }
+
+  let idx = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (r === exemptR && c === exemptC) {
+        board[r][c].value = 0;
+        board[r][c].powerup = null;
+        board[r][c].wall = false;
+        continue;
+      }
+
+      const snapshot = snapshots[idx++];
+      board[r][c].value = snapshot.value;
+      board[r][c].powerup = snapshot.powerup;
+      board[r][c].wall = snapshot.wall;
+
+      if (snapshot.value > 0) {
+        createFireworkAnimation(r, c, snapshot.value, true, 0.8);
+      }
+    }
+  }
+}
+
+function usePowerup(r, c) {
+  const cell = board[r][c];
+  if (!cell.powerup || cell.value === 0 || cell.wall) return;
+
+  const type = cell.powerup;
+  const originalValue = cell.value;
+
+  score += 100;
+  setMultiplierAround(r, c);
+
+  playPowerupPopSFX();
+
+  createFireworkAnimation(r, c, originalValue);
+
+  // 2. NEW: Target the game container and add the rumble shake class
+  const gameContainer = document.querySelector('.game-container');
+  if (gameContainer) {
+    // Instantly add the shake class
+    gameContainer.classList.add('grid-rumble');
+    
+    // Automatically remove it after 250ms so it can be re-triggered cleanly next time
+    scheduleManagedTimeout(() => {
+      gameContainer.classList.remove('grid-rumble');
+    }, 250);
+  }
+
+
+
+/* ==================== BOOST POWERUP ==================== */
+if (type === 'boost') {
+  let lowestValue = Infinity;
+
+  // Step 1: Find the absolute lowest active number on the board
+  for (let r = 0; r < board.length; r++) {
+    for (let c = 0; c < board[r].length; c++) {
+      const tile = board[r][c];
+      if (tile.value > 0 && !tile.wall) { // Fixed safety syntax checking tile.wall instead of tile.value.wall
+        if (tile.value < lowestValue) {
+          lowestValue = tile.value;
+        }
+      }
+    }
+  }
+
+  let tilesAffected = 0;
+  let totalScoreGained = 0;
+
+  // Step 2: Double all tiles matching that lowest value
+  if (lowestValue !== Infinity) {
+    for (let br = 0; br < board.length; br++) {
+      for (let bc = 0; bc < board[br].length; bc++) {
+        const tile = board[br][bc];
+        if (tile.value === lowestValue && !tile.wall) {
+          
+          // TRIGGER ON AFFECTED TILES GLOBALLY: Minor sparkle sparks matching the tier color
+          createFireworkAnimation(br, bc, tile.value, true);
+
+          tile.value *= 2;
+          tilesAffected++;
+          totalScoreGained += tile.value; 
+        }
+      }
+    }
+  }
+
+  // Step 3: Score points based on the amount of work done
+  if (totalScoreGained > 0) {
+    addScore(totalScoreGained * tilesAffected, r, c); 
+  }
+
+  // Step 4: Permanently boost future tile spawns by 1 level
+  spawnMultiplier *= 2;
+
+  // Vaporize the used boost tile
+  cell.value = 0;
+  cell.powerup = null;
+}
+
+/* ==================== EXPLODE POWERUP ==================== */
+if (type === 'explode') {
+  // Capture the original value before wiping the cell
+  const originalValue = cell.value;
+
+  // 1. Completely wipe the original tile spot clean
+  cell.value = 0;
+  cell.powerup = null;
+
+  // Find all open board spaces, explicitly EXCLUDING the original cell (r, c)
+  const emptyCells = [];
+  for (let rr = 0; rr < SIZE; rr++) {
+    for (let cc = 0; cc < SIZE; cc++) {
+      if (rr === r && cc === c) continue; 
+
+      if (!board[rr][cc].wall && board[rr][cc].value === 0) {
+        emptyCells.push({ r: rr, c: cc });
+      }
+    }
+  }
+
+  // Calculate the lowest allowed tile value before the multiplier drops
+  const minAllowedValue = 2 * spawnMultiplier;
+
+  // Create a clean list of base pieces by cutting the value in half repeatedly
+  const piecesToDistribute = [];
+  let currentVal = originalValue;
+  
+  while (currentVal / 2 >= minAllowedValue) {
+    let half = currentVal / 2;
+    piecesToDistribute.push(half);
+    currentVal = half;
+  }
+  
+  if (currentVal > 0) {
+    piecesToDistribute.push(currentVal);
+  }
+
+  // 2. Scatter the pieces safely into empty slots first
+  while (piecesToDistribute.length > 0 && emptyCells.length > 0) {
+    const piece = piecesToDistribute.shift();
+    const idx = Math.floor(Math.random() * emptyCells.length);
+    const { r: rr, c: cc } = emptyCells.splice(idx, 1)[0]; 
+
+    board[rr][cc].value = piece;
+    createFireworkAnimation(rr, cc, piece, true);
+    addScore(piece, rr, cc);
+  }
+
+  // 3. INJECTION BACKUP: If empty slots ran out but pieces remain, force-inject them
+  while (piecesToDistribute.length > 0) {
+    const piece = piecesToDistribute.shift();
+    let lowestTile = null;
+    let minVal = Infinity;
+
+    // Scan the entire board to find the absolute lowest active tile value
+    for (let rr = 0; rr < SIZE; rr++) {
+      for (let cc = 0; cc < SIZE; cc++) {
+        const target = board[rr][rr === r && cc === c ? c : cc]; // Avoid original cell if it somehow wiped
+        
+        // Skip walls, empty cells, and the cell we are currently processing if it's empty
+        if (!board[rr][cc].wall && board[rr][cc].value > 0) {
+          if (board[rr][cc].value < minVal) {
+            minVal = board[rr][cc].value;
+            lowestTile = board[rr][cc];
+          }
+        }
+      }
+    }
+
+    // If an active tile was found, inject and round up to the next power of 2
+    if (lowestTile) {
+      const combinedValue = lowestTile.value + piece;
+      
+      // Binary rounding up math: Math.pow(2, Math.ceil(Math.log2(combinedValue)))
+      const roundedValue = Math.pow(2, Math.ceil(Math.log2(combinedValue)));
+      
+      lowestTile.value = roundedValue;
+
+      // Visual feedback and score matching the newly evolved tile value
+      createFireworkAnimation(lowestTile.r, lowestTile.c, roundedValue, true);
+      addScore(roundedValue, lowestTile.r, lowestTile.c);
+    } else {
+      // Hard fallback: If the entire board is strictly walls and 0s, place it anywhere valid
+      break; 
+    }
+  }
+
+  /* --- BASE LEVEL DOWN MECHANIC --- */
+  if (spawnMultiplier > 1) {
+    spawnMultiplier /= 2;
+  }
+}
+
+/* ==================== GROW POWERUP ==================== */
+if (type === 'grow') {
+  let totalScoreGained = 0;
+
+  /* Step 1: Scan horizontally for touching identical pairs */
+  for (let r_scan = 0; r_scan < board.length; r_scan++) {
+    for (let c_scan = 0; c_scan < board[r_scan].length - 1; c_scan++) {
+      let current = board[r_scan][c_scan];
+      let next = board[r_scan][c_scan + 1];
+      if (current.value > 0 && !current.wall && !next.wall && current.value === next.value) {
+        
+        // TRIGGER ON MERGE CELLS: Minor explosion fires at both combined slots
+        createFireworkAnimation(r_scan, c_scan, current.value, true);
+        createFireworkAnimation(r_scan, c_scan + 1, next.value, true);
+
+        current.value *= 2;
+        next.value = 0;
+        totalScoreGained += current.value;
+      }
+    }
+  }
+
+  /* Step 2: Scan vertically for touching identical pairs */
+  for (let r_scan = 0; r_scan < board.length - 1; r_scan++) {
+    for (let c_scan = 0; c_scan < board[r_scan].length; c_scan++) {
+      let current = board[r_scan][c_scan];
+      let next = board[r_scan + 1][c_scan];
+      if (current.value > 0 && !current.wall && !next.wall && current.value === next.value) {
+        
+        // TRIGGER ON MERGE CELLS
+        createFireworkAnimation(r_scan, c_scan, current.value, true);
+        createFireworkAnimation(r_scan + 1, c_scan, next.value, true);
+
+        current.value *= 2;
+        next.value = 0;
+        totalScoreGained += current.value;
+      }
+    }
+  }
+
+  /* --- FALLBACK MECHANIC --- */
+  if (totalScoreGained === 0) {
+    const neighbors = getNeighbors(r, c);
+    let lowestNeighbor = null;
+    let targetR = null;
+    let targetC = null;
+
+    neighbors.forEach(({ r: nr, c: nc }) => {
+      const n = board[nr][nc];
+      if (n.value > 0 && !n.wall) {
+        if (!lowestNeighbor || n.value < lowestNeighbor.value) {
+          lowestNeighbor = n;
+          targetR = nr;
+          targetC = nc;
+        }
+      }
+    });
+
+    if (lowestNeighbor) {
+      // TRIGGER ON CONSUMED NEIGHBOR: Sparks matching its value shoot out before erasure
+      createFireworkAnimation(targetR, targetC, lowestNeighbor.value, true);
+
+      cell.value *= 2;                      
+      totalScoreGained = cell.value;        
+      
+      lowestNeighbor.value = 0;             
+      if (lowestNeighbor.powerup) {
+        lowestNeighbor.powerup = null;      
+      }
+    }
+  }
+
+  if (totalScoreGained > 0) {
+    addScore(totalScoreGained, r, c);
+  }
+}
+
+/* ==================== use as templates  ==================== */
+if (type === 'justify') {
+    // Safety Check: Ensure the clicked cell itself has a valid active number
+    if (cell.value > 0) {
+        const allValues = [];
+
+        // 1. Gather all active values from non-wall tiles across the 2D grid
+        for (let rr = 0; rr < SIZE; rr++) {
+            for (let cc = 0; cc < SIZE; cc++) {
+                const target = board[rr][cc];
+                if (!target.wall && target.value > 0) {
+                    allValues.push(target.value);
+                }
+            }
+        }
+
+        // 2. Sort values descending (highest numbers first for top-left priority)
+        allValues.sort((a, b) => b - a);
+
+        // 3. Redistribute sorted values back to the board from top-left outward
+        let valueIdx = 0;
+        for (let rr = 0; rr < SIZE; rr++) {
+            for (let cc = 0; cc < SIZE; cc++) {
+                // Skip wall tiles to preserve map geometry
+                if (board[rr][cc].wall) continue; 
+
+                if (valueIdx < allValues.length) {
+                    // Assign the next highest sorted value
+                    board[rr][cc].value = allValues[valueIdx];
+                    valueIdx++;
+                } else {
+                    // Clear out any remaining active tiles if we run out of values
+                    board[rr][cc].value = 0;
+                }
+            }
+        }
+
+        // 4. Trigger full-sized fireworks on the clicked cell to celebrate the reorganization
+        createFireworkAnimation(r, c, cell.value, true);
+
+        // 5. Award a strategic flat bonus score for organizing the board
+        addScore(100, r, c);
+
+        // Vaporize the used powerup tag off the clicked cell
+        cell.powerup = null;
+    }
+}
+
+
+
+
+/* ====================  LINK / OVERDRIVE POWERUP ==================== */
+if (type === 'link') {
+  // Safety Check: Ensure the clicked cell itself has a valid active number
+  if (cell.value > 0) {
+    const validTargets = [];
+
+    // 1. Scan the entire 2D matrix grid to find lower-value tiles
+    for (let rr = 0; rr < SIZE; rr++) {
+      for (let cc = 0; cc < SIZE; cc++) {
+        const potentialTarget = board[rr][cc];
+
+        // A tile is a valid target ONLY if:
+        // - It's not a wall
+        // - It has an active number (> 0)
+        // - Its value is strictly LESS than the clicked tile's value
+        // - It's not the exact cell we just clicked
+        if (
+          !potentialTarget.wall && 
+          potentialTarget.value > 0 && 
+          potentialTarget.value < cell.value && 
+          (rr !== r || cc !== c)
+        ) {
+          validTargets.push({ r: rr, c: cc, tile: potentialTarget });
+        }
+      }
+    }
+
+    // 2. Execute the transformation ONLY if at least one lesser tile exists
+    if (validTargets.length > 0) {
+      // Pick one random lower-tier tile out of the eligible targets list
+      const randomIdx = Math.floor(Math.random() * validTargets.length);
+      const chosen = validTargets[randomIdx];
+
+      // 3. Upgrade the chosen lesser tile's value to match the high tile
+      chosen.tile.value = cell.value;
+
+      // 4. Trigger massive full-sized fireworks on BOTH linked cells!
+      // They will explode in unison using the high tile's evolved color layer
+      createFireworkAnimation(r, c, cell.value, true);       // Flash on clicked high tile
+      createFireworkAnimation(chosen.r, chosen.c, cell.value, true); // Flash on newly upgraded tile
+
+      // 5. Award standard 2048-tier merge points for the upgrade work done
+      addScore(cell.value * 2, chosen.r, chosen.c);
+
+      // Vaporize the used powerup tag off the clicked cell
+      cell.powerup = null;
+    }
+    // Note: If no lesser tiles exist on the board, the powerup will do nothing
+    // and preserve your icon so it is never wasted!
+  }
+}
+
+
+
+/* ==================== warp POWERUP ==================== */
+if (type === 'warp') {
+  const targetR = SIZE - 1 - r;
+  const targetC = SIZE - 1 - c;
+  const target = board[targetR][targetC];
+
+  if (!target.wall) {
+    const temp = { value: cell.value, powerup: cell.powerup };
+    board[r][c].value = target.value;
+    board[r][c].powerup = target.powerup;
+    target.value = temp.value;
+    target.powerup = null;
+  }
+}
+
+/* ==================== tidal POWERUP ==================== */
+if (type === 'tidal') {
+  shuffleBoardPositions(r, c);
+  createFireworkAnimation(r, c, originalValue, true, 0.8);
+}
+
+/* ==================== BLACKHOLE POWERUP ==================== */
+if (type === 'BlackHole') {
+  let combinedValue = 0;
+  let tilesClearedCount = 0;
+
+  const clearRow = Math.random() < 0.5;
+
+  if (clearRow) {
+    // ---- CLEAR ROW LOGIC ----
+    for (let cc = 0; cc < SIZE; cc++) {
+      const targetCell = board[r][cc];
+
+      if (!targetCell.wall && targetCell.value > 0) {
+        combinedValue += targetCell.value;
+        tilesClearedCount++;
+
+        // TRIGGER ON TARGET ROW BLOCKS: Secondary flame matching the vanishing tile color
+        createFireworkAnimation(r, cc, targetCell.value, true);
+      }
+      
+      if (!targetCell.wall) {
+        targetCell.value = 0;
+        targetCell.powerup = null;
+      }
+    }
+  } else {
+    // ---- CLEAR COLUMN LOGIC ----
+    for (let rr = 0; rr < SIZE; rr++) {
+      const targetCell = board[rr][c];
+
+      if (!targetCell.wall && targetCell.value > 0) {
+        combinedValue += targetCell.value;
+        tilesClearedCount++;
+
+        // TRIGGER ON TARGET COLUMN BLOCKS
+        createFireworkAnimation(rr, c, targetCell.value, true);
+      }
+      
+      if (!targetCell.wall) {
+        targetCell.value = 0;
+        targetCell.powerup = null;
+      }
+    }
+  }
+
+  if (tilesClearedCount > 0) {
+    const finalRewardScore = combinedValue * tilesClearedCount;
+    addScore(finalRewardScore, r, c);
+  }
+
+  /* --- BASE LEVEL DOWN MECHANIC 
+  if (spawnMultiplier > 1) {
+    spawnMultiplier /= 2;
+  }--- */
+}
+
+
+  board[r][c].powerup = null;
+  rollPowerups();
+  updateDOM();
+}
+
+
+function onCellClick(e) {
+  const r = parseInt(e.currentTarget.dataset.row, 10);
+  const c = parseInt(e.currentTarget.dataset.col, 10);
+  const cell = board[r][c];
+
+  if (cell.wall) return;
+  if (cell.powerup && cell.value > 0) usePowerup(r, c);
+}
+
+window.addEventListener('keydown', e => {
+  const key = e.key.toLowerCase();
+
+  // Arrow keys
+  if (key === 'arrowup' || key === 'w') {
+    e.preventDefault();
+    move('UP');
+  }
+  if (key === 'arrowdown' || key === 's') {
+    e.preventDefault();
+    move('DOWN');
+  }
+  if (key === 'arrowleft' || key === 'a') {
+    e.preventDefault();
+    move('LEFT');
+  }
+  if (key === 'arrowright' || key === 'd') {
+    e.preventDefault();
+    move('RIGHT');
+  }
+});
+
+
+
+
+// Mouse arrow controls
+
+
+
+
+/////////////////////////////////// - V  this chunk should give touch control
+let touchStartX = 0;
+let touchStartY = 0;
+let touchEndX = 0;
+let touchEndY = 0;
+const swipeThreshold = 30;
+
+const boardElement = document.querySelector('.game-container');
+
+boardElement.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+boardElement.addEventListener('touchend', e => {
+  touchEndX = e.changedTouches[0].clientX;
+  touchEndY = e.changedTouches[0].clientY;
+
+  const dx = touchEndX - touchStartX;
+  const dy = touchEndY - touchStartY;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (dx > swipeThreshold) move('RIGHT');
+    else if (dx < -swipeThreshold) move('LEFT');
+  } else {
+    if (dy > swipeThreshold) move('DOWN');
+    else if (dy < -swipeThreshold) move('UP');
+  }
+});
+
+// Prevent page-level scroll on touch drag outside the powerup panel
+window.addEventListener('touchmove', e => {
+  const path = e.composedPath ? e.composedPath() : [e.target];
+  const insidePowerup = path.some(el => el.classList && el.classList.contains('powerup-key'));
+  if (!insidePowerup) {
+    e.preventDefault();
+  }
+}, { passive: false });
+////////////
+
+
+createGrid();
+enableHardwareAcceleration();
+resetGame();
+
+
+
+
+// --- AMBIENT AUDIO ENGINE WITH RICH HEARTBEAT PERCUSSION GROOVE ---
+let audioCtx = null;
+let musicLoopTimeout = null;
+let isMusicPlaying = false;
+let isMusicMuted = false;
+let musicVolumeNode = null; // Single, clean master audio declaration
+let currentVolumeLevel = 0.5;
+
+// Track 1: Deep atmospheric bass swells (The Low Ambient Foundation)
+const ambientSciFiMelody = [
+  { note: 196.00, dur: 5.5 }, // G3
+  { note: 246.94, dur: 5.0 }, // B3
+  { note: 293.66, dur: 5.5 }, // D4
+  { note: 369.99, dur: 6.5 }, // F#4
+  { note: 174.61, dur: 5.5 }, // F3
+  { note: 220.00, dur: 5.0 }, // A3
+  { note: 261.63, dur: 5.5 }, // C4
+  { note: 329.63, dur: 7.5 }  // E4
+];
+
+// Track 2: Re-tuned Jazzy Riff: 11 steps total
+const jazzyTrebleRiff = [
+  { note: 146.83, dur: 0.35 }, // D3 (Deep, warm jazz key tap)
+  { note: 164.81, dur: 0.35 }, // E3
+  { note: 196.00, dur: 0.35 }, // G3
+  { note: 0,      dur: 0.35, type: 'rest' },
+  
+  { note: 220.00, dur: 0.70 }, // A3 (Sustained smooth chord tone)
+  { note: 196.00, dur: 0.35 }, // G3
+  { note: 164.81, dur: 0.35 }, // E3
+  
+  { note: 130.81, dur: 0.35 }, // C3
+  { note: 0,      dur: 0.35, type: 'rest' },
+  { note: 146.83, dur: 0.35 }, // D3
+  { note: 0,      dur: 0.35, type: 'rest' } // Last element (Index 10)
+];
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+// Track 3 Helper: Unified 3-note walking bassline (Mutes cleanly alongside the music track)
+function playHeartbeatDrum(isHighSlap = false, isFirstAccent = true) {
+  if (!audioCtx || !isMusicPlaying) return; 
+
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+
+  osc.type = 'sine'; 
+  
+  let targetPitch;
+  if (isHighSlap) {
+    targetPitch = isFirstAccent ? 110.00 : 73.42;
+  } else {
+    targetPitch = 55.00; 
+  }
+  
+  osc.frequency.setValueAtTime(targetPitch, now);
+
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(0.07, now + 0.15);      
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.70); 
+
+  osc.connect(gainNode);
+  
+  // Routes straight into music volume bus to kill sound on mute toggle
+  gainNode.connect(musicVolumeNode || audioCtx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.70);
+}
+
+function playAmbientSwell(frequency, duration) {
+  if (!audioCtx || !isMusicPlaying) return;
+
+  const osc = audioCtx.createOscillator();
+  const localGain = audioCtx.createGain();
+
+  if (!musicVolumeNode) {
+    musicVolumeNode = audioCtx.createGain();
+    const currentTargetVolume = (isMusicMuted || !isMusicPlaying) ? 0 : currentVolumeLevel;
+    musicVolumeNode.gain.setValueAtTime(currentTargetVolume, audioCtx.currentTime);
+    musicVolumeNode.connect(audioCtx.destination);
+  }
+
+  osc.type = 'sine'; 
+  osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+
+  localGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  localGain.gain.linearRampToValueAtTime(0.075, audioCtx.currentTime + 1.5); 
+  localGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+  osc.connect(localGain);
+  localGain.connect(musicVolumeNode);
+
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playJazzyTrebleChip(frequency, duration) {
+  if (!audioCtx || !isMusicPlaying || frequency === 0) return;
+
+  const osc = audioCtx.createOscillator();
+  const localGain = audioCtx.createGain();
+
+  osc.type = 'triangle'; 
+  const now = audioCtx.currentTime;
+  osc.frequency.setValueAtTime(frequency, now);
+
+  localGain.gain.setValueAtTime(0.035, now); 
+  localGain.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.1);
+
+  osc.connect(localGain);
+  localGain.connect(musicVolumeNode || audioCtx.destination);
+
+  osc.start(now);
+  osc.stop(now + duration + 0.1);
+}
+
+// Adjusts the master music timeline via your HTML slider
+function adjustMusicVolume(value) {
+  currentVolumeLevel = parseFloat(value);
+  if (musicVolumeNode && !isMusicMuted) {
+    musicVolumeNode.gain.setValueAtTime(currentVolumeLevel, audioCtx.currentTime);
+  }
+}
+
+function startBackgroundMusic() {
+  if (isMusicPlaying) return;
+  initAudio();
+  isMusicPlaying = true;
+
+  const btn = document.getElementById('play-pause-btn');
+  if (btn) btn.innerText = "⏸";
+
+  let chordIndex = 0;
+  let trebleIndex = 0;
+  let masterTick = 0;
+  
+  // Track 2 counters
+  let rotationCount = 3;   
+  let repeatCount = 6;     
+  let pauseCount = 0;      
+
+  // Track 3 counter
+  let drumMasterCycle = 0;
+
+  function scheduler() {
+    if (!isMusicPlaying) return;
+
+    const totalStepsInMeasure = jazzyTrebleRiff.length; // 11 steps
+
+    // 1. Core Ambient Chord Progression Layer (Every 16 steps)
+    if (masterTick % 16 === 0) {
+      const currentChord = ambientSciFiMelody[chordIndex];
+      playAmbientSwell(currentChord.note, 7.0);
+      chordIndex = (chordIndex + 1) % ambientSciFiMelody.length;
+    }
+
+    // 2. FLIPPED 24-BEAT ATMOSPHERIC PERCUSSION SEQUENCE
+    const loopStep = drumMasterCycle % 24; 
+
+    if (loopStep === 4) {
+      playHeartbeatDrum(true, true);  
+    } else if (loopStep === 8) {
+      playHeartbeatDrum(true, false); 
+    } else if (loopStep === 12) {
+      playHeartbeatDrum(false); 
+    }
+
+    drumMasterCycle++;
+
+    // 3. Track 2: Syncopated Jazz Keyboard Arrangement Layer
+    if (rotationCount >= 3 && repeatCount >= 6) {
+      pauseCount++;
+      if (pauseCount >= totalStepsInMeasure) {
+        rotationCount = 0; 
+        repeatCount = 0;
+        pauseCount = 0;
+        trebleIndex = 0;   
+      }
+    } 
+    else if (rotationCount >= 3) {
+      const tripletNote = jazzyTrebleRiff[9]; 
+      if (repeatCount % 2 === 0) {
+        playJazzyTrebleChip(tripletNote.note, tripletNote.dur);
+      }
+      repeatCount++;
+    } 
+    else {
+      const currentTreble = jazzyTrebleRiff[trebleIndex];
+      if (currentTreble.type !== 'rest') {
+        playJazzyTrebleChip(currentTreble.note, currentTreble.dur);
+      }
+      
+      trebleIndex++;
+      if (trebleIndex >= totalStepsInMeasure) {
+        trebleIndex = 0;   
+        rotationCount++;   
+      }
+    }
+
+    masterTick++;
+    musicLoopTimeout = setTimeout(scheduler, 340); 
+  }
+
+  scheduler();
+}
+
+
+function stopBackgroundMusic() {
+  isMusicPlaying = false;
+  if (musicLoopTimeout) {
+    clearTimeout(musicLoopTimeout);
+    musicLoopTimeout = null;
+  }
+}
+
+function adjustMusicVolume(value) {
+  currentVolumeLevel = parseFloat(value);
+  // Directly shifts the music line volume level
+  if (musicVolumeNode && !isMusicMuted) {
+    musicVolumeNode.gain.setValueAtTime(currentVolumeLevel, audioCtx.currentTime);
+  }
+}
+
+function togglePlayPauseMusic() {
+  const btn = document.getElementById('play-pause-btn');
+  
+  if (isMusicPlaying) {
+    // 1. Instantly snap the music channel volume to 0 for a crisp cut-off
+    if (musicVolumeNode) {
+      musicVolumeNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    }
+    
+    // 2. Clear out the scheduler timer loop (Sets isMusicPlaying to false, blocking SFX)
+    stopBackgroundMusic();
+    if (btn) btn.innerText = "⏵";
+  } else {
+    // 1. Boot up the audio scheduler track loop execution pipeline
+    startBackgroundMusic();
+    
+    // 2. Instantly restore the true configuration slider volume to the master output
+    if (musicVolumeNode && !isMusicMuted) {
+      musicVolumeNode.gain.setValueAtTime(currentVolumeLevel, audioCtx.currentTime);
+    }
+    if (btn) btn.innerText = "⏸";
+  }
+}
+
+
+function toggleMuteMusic() {
+  isMusicMuted = !isMusicMuted;
+  const btn = document.getElementById('mute-btn');
+  if (btn) {
+    // Visual indicator updates cleanly
+    btn.innerText = isMusicMuted ? "🔇" : "🔊";
+    btn.style.color = isMusicMuted ? "#ff3030" : "#adadad";
+  }
+  
+  // FIXED: Snaps ONLY the music channel to 0, leaving your sound effects untouched!
+  if (musicVolumeNode) {
+    const targetVolume = isMusicMuted ? 0 : currentVolumeLevel;
+    musicVolumeNode.gain.setValueAtTime(targetVolume, audioCtx.currentTime);
+  }
+}
+
+
+
+// --- AMBIENT SCI-FI GAME SFX ENGINE ---
+
+// Generates a smooth, slow, airy wind glide (No scratchy sandpaper grain)
+function playSwooshSFX() {
+if (!audioCtx || !isMusicPlaying) return;
+  const now = audioCtx.currentTime;
+
+  const duration = 0.20; 
+  const sampleRate = audioCtx.sampleRate;
+  const bufferSize = sampleRate * duration;
+  const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.Q.setValueAtTime(2.0, now); 
+  
+  filter.frequency.setValueAtTime(300, now);
+  filter.frequency.exponentialRampToValueAtTime(700, now + duration);
+
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.setValueAtTime(0.06, now);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  source.connect(filter);
+  filter.connect(gainNode);
+
+  // FIXED: Connects directly to speakers via an independent slider volume bus
+  const sfxSliderGain = audioCtx.createGain();
+  sfxSliderGain.gain.setValueAtTime(currentVolumeLevel, audioCtx.currentTime);
+  
+  gainNode.connect(sfxSliderGain);
+  sfxSliderGain.connect(audioCtx.destination);
+
+  source.start(now);
+  source.stop(now + duration);
+}
+
+// Upgraded powerup space-echo chime
+function playPowerupPopSFX() {
+  if (!audioCtx || !isMusicPlaying) return; // Removed isMusicMuted restriction so it bypasses the music master mute
+  const now = audioCtx.currentTime;
+  const duration = 0.90; 
+
+  const baseFreq = 329.63; 
+  const fifthFreq = 493.88; 
+
+  function triggerEchoBounce(timeOffset, volumeMultiplier) {
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    osc1.type = 'sine';
+    osc2.type = 'sine';
+
+    const glideTime = 0.35;
+    osc1.frequency.setValueAtTime(baseFreq, now + timeOffset);
+    osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + timeOffset + glideTime);
+
+    osc2.frequency.setValueAtTime(fifthFreq, now + timeOffset);
+    osc2.frequency.exponentialRampToValueAtTime(fifthFreq * 1.5, now + timeOffset + glideTime);
+
+    gainNode.gain.setValueAtTime(0, now + timeOffset);
+    gainNode.gain.linearRampToValueAtTime(0.05 * volumeMultiplier, now + timeOffset + 0.05); 
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + timeOffset + glideTime);
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+
+    // FIXED: Setup direct-to-speaker bypass node that tracks your slider input scaling values
+    const sfxSliderGain = audioCtx.createGain();
+    sfxSliderGain.gain.setValueAtTime(currentVolumeLevel, audioCtx.currentTime);
+    
+    gainNode.connect(sfxSliderGain);
+    sfxSliderGain.connect(audioCtx.destination);
+
+    osc1.start(now + timeOffset);
+    osc2.start(now + timeOffset);
+    osc1.stop(now + timeOffset + glideTime);
+    osc2.stop(now + timeOffset + glideTime);
+  }
+
+  triggerEchoBounce(0.00, 1.0);
+  triggerEchoBounce(0.14, 0.5);
+  triggerEchoBounce(0.28, 0.25);
+  triggerEchoBounce(0.42, 0.10);
+}
+
+// Upgraded mid-bass tile merge confirmation sound
+function playPowerupMergeSFX() {
+  if (!audioCtx || !isMusicPlaying) return; 
+  const now = audioCtx.currentTime;
+  const duration = 0.30; 
+
+  const osc1 = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+
+  osc1.type = 'sine';
+  osc2.type = 'sine';
+
+  osc1.frequency.setValueAtTime(164.81, now);
+  osc1.frequency.exponentialRampToValueAtTime(329.63, now + 0.15);
+
+  osc2.frequency.setValueAtTime(246.94, now);
+  osc2.frequency.exponentialRampToValueAtTime(493.88, now + 0.15);
+
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(0.08, now + 0.03); 
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  osc1.connect(gainNode);
+  osc2.connect(gainNode);
+
+  // FIXED: Setup direct-to-speaker bypass node that tracks your slider input scaling values
+  const sfxSliderGain = audioCtx.createGain();
+  sfxSliderGain.gain.setValueAtTime(currentVolumeLevel, audioCtx.currentTime);
+  
+  gainNode.connect(sfxSliderGain);
+  sfxSliderGain.connect(audioCtx.destination);
+
+  osc1.start(now);
+  osc2.start(now);
+  osc1.stop(now + duration);
+  osc2.stop(now + duration);
+}
+
+
+
+
+
+
+//// Copyright SMURPHSHIRE 2026 - All Rights Reserved
+
+
+
+  </script>
+  <script>
+  (function(){
+    function fitScoreToContainer(scoreEl, containerEl, minSize = 12) {
+      if (!scoreEl || !containerEl) return;
+      scoreEl.style.fontSize = '';
+      let computed = window.getComputedStyle(scoreEl);
+      let fontSize = parseFloat(computed.fontSize) || 24;
+      if (fontSize < 8) fontSize = 24;
+      while (scoreEl.scrollWidth > containerEl.clientWidth && fontSize > minSize) {
+        fontSize -= 1;
+        scoreEl.style.fontSize = fontSize + 'px';
+      }
+    }
+    function fitAllScores() {
+      const container = document.querySelector('.score-container');
+      const scoreEl = document.getElementById('score');
+      const highEl = document.getElementById('high-score');
+      if (container && scoreEl) fitScoreToContainer(scoreEl, container);
+      if (container && highEl) fitScoreToContainer(highEl, container);
+    }
+    function setupObservers() {
+      const scoreEl = document.getElementById('score');
+      const highEl = document.getElementById('high-score');
+      if (!scoreEl && !highEl) return;
+      const obs = new MutationObserver(() => fitAllScores());
+      if (scoreEl) obs.observe(scoreEl, { childList: true, characterData: true, subtree: true });
+      if (highEl) obs.observe(highEl, { childList: true, characterData: true, subtree: true });
+    }
+    window.addEventListener('resize', fitAllScores);
+    window.addEventListener('load', () => { setupObservers(); setTimeout(fitAllScores, 30); });
+  })();
+  </script>
+</body>
+</html>
